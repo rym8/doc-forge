@@ -45,7 +45,7 @@ export const useStore = create<DocForgeStore>((set, get) => ({
     const snapshots = await snapsRes.json();
     set({
       currentSessionId: id,
-      documentContent: session.documentContent,
+      documentContent: session.documentContent ?? "",
       messages,
       snapshots,
     });
@@ -61,7 +61,7 @@ export const useStore = create<DocForgeStore>((set, get) => ({
     set((state) => ({
       sessions: [session, ...state.sessions],
       currentSessionId: session.id,
-      documentContent: "",
+      documentContent: session.documentContent ?? "",
       messages: [],
       snapshots: [],
     }));

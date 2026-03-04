@@ -1,6 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { UPDATE_DOCUMENT_TOOL, type DocumentUpdate } from "./tools";
 import { SYSTEM_PROMPT, buildMessages, type LlmMessage } from "./prompt";
+import {
+  buildStructuredAutoUpdate,
+  ensureStructuredDocument,
+} from "@/lib/document-template";
 import type { Message } from "@/lib/types";
 
 type Provider = "anthropic" | "openai" | "gemini" | "mock";
@@ -37,7 +41,7 @@ const FALLBACK_PROVIDER_ORDER: RealProvider[] = [
 const DEFAULT_MODELS: Record<Provider, string> = {
   anthropic: "claude-sonnet-4-20250514",
   openai: "gpt-4o-mini",
-  gemini: "gemini-2.0-flash",
+  gemini: "gemini-2.5-pro",
   mock: "mock-model",
 };
 
@@ -183,8 +187,47 @@ function parseDocumentUpdate(input: unknown): DocumentUpdate | null {
 }
 
 const CONVERSATION_NOTES_START = "<!-- DOC_FORGE_CONVERSATION_NOTES_START -->";
-const CONVERSATION_NOTES_END = "<!-- DOC_FORGE_CONVERSATION_NOTES_END -->";
 const CONVERSATION_DRAFT_HEADING = "## Conversation Draft";
+const DOCUMENT_BLOCK = /<document>[\s\S]*?<\/document>/gi;
+const CONVERSATION_NOTES_BLOCK = /<!-- DOC_FORGE_CONVERSATION_NOTES_START -->[\s\S]*?<!-- DOC_FORGE_CONVERSATION_NOTES_END -->/gi;
+const LEGACY_CONVERSATION_SECTION = /\n?##\s+Conversation Draft[\s\S]*$/im;
+
+function findFirstMarkerIndex(text: string): number {
+  const markers = [
+    "<document>",
+    "</document>",
+    CONVERSATION_NOTES_START,
+    CONVERSATION_DRAFT_HEADING,
+  ];
+  const lower = text.toLowerCase();
+  const indexes = markers
+    .map((marker) => lower.indexOf(marker.toLowerCase()))
+    .filter((idx) => idx >= 0);
+
+  return indexes.length > 0 ? Math.min(...indexes) : -1;
+}
+
+function stripDocumentArtifacts(text: string): string {
+  const markerIndex = findFirstMarkerIndex(text);
+  let cleaned = text;
+
+  // Keep conversational lead text, drop trailing document payload.
+  if (markerIndex >= 0) {
+    const prefix = text.slice(0, markerIndex).trim();
+    if (prefix) {
+      cleaned = prefix;
+    }
+  }
+
+  return cleaned
+    .replace(DOCUMENT_BLOCK, "\n")
+    .replace(CONVERSATION_NOTES_BLOCK, "\n")
+    .replace(LEGACY_CONVERSATION_SECTION, "\n")
+    .replace(/<\/?document>/gi, "\n")
+    .replace(/<!--\s*DOC_FORGE_CONVERSATION_NOTES_(START|END)\s*-->/gi, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 
 function summarizeForDraft(text: string, max = 220): string {
   const normalized = text.replace(/\s+/g, " ").trim();
@@ -198,31 +241,7 @@ function buildAutoDraftUpdate(
   userMessage: string,
   assistantText: string
 ): DocumentUpdate {
-  const base = doc.trim()
-    ? doc.trim()
-    : "# Draft\n\nチャット内容をもとに作成する下書きです。";
-  const userLine = summarizeForDraft(userMessage, 260);
-  const assistantLine = summarizeForDraft(assistantText, 260);
-
-  const lines = [`- User: ${userLine}`];
-  if (assistantLine) {
-    lines.push(`- Assistant: ${assistantLine}`);
-  }
-
-  const startPos = base.indexOf(CONVERSATION_NOTES_START);
-  const endPos = base.indexOf(CONVERSATION_NOTES_END);
-
-  const document =
-    startPos !== -1 && endPos !== -1 && endPos > startPos
-      ? `${base.slice(0, endPos).trimEnd()}\n${lines.join("\n")}\n${base.slice(endPos)}`
-      : base.includes(CONVERSATION_DRAFT_HEADING)
-        ? `${base}\n${lines.join("\n")}`
-        : `${base}\n\n${CONVERSATION_NOTES_START}\n${CONVERSATION_DRAFT_HEADING}\n${lines.join("\n")}\n${CONVERSATION_NOTES_END}`;
-
-  return {
-    document,
-    summary: "チャット内容をもとに下書きを自動追記",
-  };
+  return buildStructuredAutoUpdate(doc, userMessage, assistantText);
 }
 
 function buildConversationalFallbackText(
@@ -280,7 +299,7 @@ function ensureAdvisoryAssistantText(
   text: string,
   userMessage: string
 ): string {
-  const trimmed = text.trim();
+  const trimmed = stripDocumentArtifacts(text);
   if (!trimmed) return buildConversationalFallbackText(userMessage);
   if (isOperationalStatusText(trimmed)) {
     return buildConversationalFallbackText(userMessage);
@@ -582,7 +601,8 @@ export async function* streamChat(
   userMessage: string,
   options: { providerKeys?: RuntimeProviderKeys } = {}
 ): AsyncGenerator<StreamEvent> {
-  const messages = buildMessages(doc, history, userMessage);
+  const normalizedDoc = ensureStructuredDocument(doc);
+  const messages = buildMessages(normalizedDoc, history, userMessage);
   const providers = resolveProviderConfigs(options.providerKeys);
   const fallbackErrors: string[] = [];
 
@@ -610,15 +630,19 @@ export async function* streamChat(
           }
         }
 
+        const finalText = ensureAdvisoryAssistantText(fullText, userMessage);
         if (!documentUpdated) {
-          const autoDraft = buildAutoDraftUpdate(doc, userMessage, fullText);
+          const autoDraft = buildAutoDraftUpdate(
+            normalizedDoc,
+            userMessage,
+            finalText
+          );
           yield {
             type: "document_update",
             document: autoDraft.document,
             summary: autoDraft.summary,
           };
         }
-        const finalText = ensureAdvisoryAssistantText(fullText, userMessage);
         yield { type: "text_delta", text: finalText };
         yield { type: "done", fullText: finalText };
         return;
@@ -639,10 +663,14 @@ export async function* streamChat(
     }
 
     try {
-      const result = await chatWithProvider(config, messages, { doc, userMessage });
-      const documentUpdate =
-        result.documentUpdate ?? buildAutoDraftUpdate(doc, userMessage, result.text);
+      const result = await chatWithProvider(config, messages, {
+        doc: normalizedDoc,
+        userMessage,
+      });
       const finalText = ensureAdvisoryAssistantText(result.text, userMessage);
+      const documentUpdate =
+        result.documentUpdate ??
+        buildAutoDraftUpdate(normalizedDoc, userMessage, finalText);
       yield { type: "text_delta", text: finalText };
       yield {
         type: "document_update",
@@ -680,7 +708,8 @@ export async function chat(
   userMessage: string,
   options: { providerKeys?: RuntimeProviderKeys } = {}
 ): Promise<ChatResult> {
-  const messages = buildMessages(doc, history, userMessage);
+  const normalizedDoc = ensureStructuredDocument(doc);
+  const messages = buildMessages(normalizedDoc, history, userMessage);
   const providers = resolveProviderConfigs(options.providerKeys);
   const fallbackErrors: string[] = [];
 
@@ -689,11 +718,14 @@ export async function chat(
     const hasNext = i < providers.length - 1;
 
     try {
-      const result = await chatWithProvider(config, messages, { doc, userMessage });
+      const result = await chatWithProvider(config, messages, {
+        doc: normalizedDoc,
+        userMessage,
+      });
+      const finalText = ensureAdvisoryAssistantText(result.text, userMessage);
       const documentUpdate =
         result.documentUpdate ??
-        buildAutoDraftUpdate(doc, userMessage, result.text);
-      const finalText = ensureAdvisoryAssistantText(result.text, userMessage);
+        buildAutoDraftUpdate(normalizedDoc, userMessage, finalText);
       return {
         text: finalText,
         documentUpdate,

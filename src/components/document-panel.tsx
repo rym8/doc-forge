@@ -10,18 +10,12 @@ import { MarkdownPreview } from "./markdown-preview";
 import { MarkdownEditor } from "./markdown-editor";
 import { ArchiveDrawer } from "./archive-drawer";
 import { cn } from "@/lib/utils";
+import { stripConversationArtifacts } from "@/lib/document-template";
 
 type ViewMode = "preview" | "editor" | "split";
 
-const CONVERSATION_NOTES_BLOCK =
-  /<!-- DOC_FORGE_CONVERSATION_NOTES_START -->[\s\S]*?<!-- DOC_FORGE_CONVERSATION_NOTES_END -->/g;
-const LEGACY_CONVERSATION_SECTION = /\n?##\s+Conversation Draft[\s\S]*$/m;
-
 function buildPreviewContent(content: string): string {
-  return content
-    .replace(CONVERSATION_NOTES_BLOCK, "")
-    .replace(LEGACY_CONVERSATION_SECTION, "")
-    .trim();
+  return stripConversationArtifacts(content);
 }
 
 export function DocumentPanel() {

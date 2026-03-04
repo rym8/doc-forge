@@ -12,24 +12,38 @@ Doc Forge は、対話しながら Markdown 文書を育てていくローカル
 ## 主な機能
 
 - チャットとドキュメントを1画面で編集
+- 初期は空の文書から開始し、対話に応じて本文を自動で構造化
 - セッションの作成、切り替え、削除、タイトル編集
 - LLM キーの画面設定と暗号化保存
 - Gemini / OpenAI / Claude の自動選択
 - quota / rate limit 発生時の自動フォールバック
+- Playwright による E2E テスト
 
 ## 動作環境
 
 - Node.js 20 以上
 - npm 10 以上
 
-## セットアップ
+## セットアップと起動
+
+まず `doc-forge/app` フォルダへ移動します。
+
+```bash
+# claude-code 配下で作業している場合
+cd src/doc-forge/app
+
+# 公開リポジトリ doc-forge を単体で clone した場合
+# cd doc-forge/app
+```
+
+次に依存関係を入れて、環境変数ファイルを作成します。
 
 ```bash
 npm install
 cp .env.local.example .env.local
 ```
 
-## 起動
+起動コマンド:
 
 ```bash
 npm run dev
@@ -62,14 +76,23 @@ npm run dev
 - `ANTHROPIC_API_KEY`
 
 `LLM_PROVIDER` を指定すると先頭プロバイダを固定できます。  
-例: `LLM_PROVIDER=gemini`
+例: `LLM_PROVIDER=gemini`  
+外部APIを使わずに確認したい場合は `LLM_PROVIDER=mock` を使います。
 
-## 実行コマンド
+## 開発コマンド
 
 ```bash
 npm run dev
+npm run lint
 npm run build
-npm run start
+npm run test:e2e
+```
+
+E2E 実行例:
+
+```bash
+LLM_PROVIDER=mock npm run test:e2e
+LLM_PROVIDER=gemini npm run test:e2e
 ```
 
 ## データ保存
