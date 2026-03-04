@@ -8,6 +8,8 @@
   },
   "scripts": {
     "dev": "next dev",
+    "setup:local": "bash ./scripts/setup-local.sh",
+    "start:local": "bash ./scripts/start-local.sh",
     "build": "next build",
     "start": "next start"
   },

@@ -36,11 +36,7 @@ Doc Forge は、対話しながら Markdown 文書を育てていくローカル
 ### ターミナルから最短で使う
 
 ```bash
-# claude-code 配下で作業している場合
-cd src/doc-forge
-
-# 公開リポジトリ doc-forge を単体で clone した場合
-# cd doc-forge
+cd doc-forge
 
 ./setup-doc-forge.sh   # 初回のみ
 ./start-doc-forge.sh   # 毎回
@@ -49,24 +45,16 @@ cd src/doc-forge
 ### Windows（PowerShell）
 
 ```powershell
-# claude-code 配下で作業している場合
-cd src\doc-forge
-
-# 公開リポジトリ doc-forge を単体で clone した場合
-# cd doc-forge
+cd doc-forge
 
 powershell -ExecutionPolicy Bypass -File .\setup-doc-forge.ps1   # 初回のみ
 powershell -ExecutionPolicy Bypass -File .\start-doc-forge.ps1   # 毎回
 ```
 
-### app 配下で直接実行したい場合
+### npm コマンドで直接実行したい場合
 
 ```bash
-# claude-code 配下で作業している場合
-cd src/doc-forge/app
-
-# 公開リポジトリ doc-forge を単体で clone した場合
-# cd doc-forge/app
+cd doc-forge
 
 npm run setup:local   # npm ci + .env.local 自動作成
 npm run start:local   # 開発サーバー起動
