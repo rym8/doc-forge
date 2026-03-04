@@ -16,7 +16,6 @@ Doc Forge は、対話しながら Markdown 文書を育てていくローカル
 - LLM キーの画面設定と暗号化保存
 - Gemini / OpenAI / Claude の自動選択
 - quota / rate limit 発生時の自動フォールバック
-- Playwright による E2E テスト
 
 ## 動作環境
 
@@ -26,7 +25,6 @@ Doc Forge は、対話しながら Markdown 文書を育てていくローカル
 ## セットアップ
 
 ```bash
-cd src/doc-forge/app
 npm install
 cp .env.local.example .env.local
 ```
@@ -64,23 +62,14 @@ npm run dev
 - `ANTHROPIC_API_KEY`
 
 `LLM_PROVIDER` を指定すると先頭プロバイダを固定できます。  
-例: `LLM_PROVIDER=gemini`  
-外部APIを使わずに確認したい場合は `LLM_PROVIDER=mock` を使います。
+例: `LLM_PROVIDER=gemini`
 
-## 開発コマンド
+## 実行コマンド
 
 ```bash
 npm run dev
-npm run lint
 npm run build
-npm run test:e2e
-```
-
-E2E 実行例:
-
-```bash
-LLM_PROVIDER=mock npm run test:e2e
-LLM_PROVIDER=gemini npm run test:e2e
+npm run start
 ```
 
 ## データ保存
