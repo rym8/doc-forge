@@ -2,7 +2,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $baseDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$appDir = Join-Path $baseDir "app"
+$nestedAppDir = Join-Path $baseDir "app"
+$appDir = if (Test-Path $nestedAppDir) { $nestedAppDir } else { $baseDir }
 $setupScript = Join-Path $baseDir "setup-doc-forge.ps1"
 
 Push-Location $appDir

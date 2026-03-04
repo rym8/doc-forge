@@ -2,7 +2,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $baseDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$appDir = Join-Path $baseDir "app"
+$nestedAppDir = Join-Path $baseDir "app"
+$appDir = if (Test-Path $nestedAppDir) { $nestedAppDir } else { $baseDir }
 
 function Test-CommandExists {
     param([Parameter(Mandatory = $true)][string]$CommandName)
