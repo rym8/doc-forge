@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { MenuIcon } from "lucide-react";
 import {
   ResizablePanelGroup,
@@ -26,18 +26,57 @@ const FONT_SCALE_DEFAULT = 100;
 const FONT_SCALE_MIN = 90;
 const FONT_SCALE_MAX = 130;
 const FONT_SCALE_STEP = 10;
+const FONT_SCALE_EVENT = "doc-forge-font-scale-change";
 
-function getInitialFontScale(): number {
+function clampFontScale(value: number): number {
+  return Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, value));
+}
+
+function readSavedFontScale(): number {
   if (typeof window === "undefined") return FONT_SCALE_DEFAULT;
   const raw = window.localStorage.getItem(FONT_SCALE_KEY);
   const parsed = raw ? Number(raw) : NaN;
   if (!Number.isFinite(parsed)) return FONT_SCALE_DEFAULT;
-  return Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, parsed));
+  return clampFontScale(parsed);
+}
+
+function subscribeFontScale(onStoreChange: () => void): () => void {
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key !== null && event.key !== FONT_SCALE_KEY) return;
+    onStoreChange();
+  };
+  const handleLocalChange = () => onStoreChange();
+
+  window.addEventListener("storage", handleStorage);
+  window.addEventListener(FONT_SCALE_EVENT, handleLocalChange);
+
+  return () => {
+    window.removeEventListener("storage", handleStorage);
+    window.removeEventListener(FONT_SCALE_EVENT, handleLocalChange);
+  };
+}
+
+function getFontScaleSnapshot(): number {
+  return readSavedFontScale();
+}
+
+function getFontScaleServerSnapshot(): number {
+  return FONT_SCALE_DEFAULT;
+}
+
+function persistFontScale(nextValue: number): void {
+  const clamped = clampFontScale(nextValue);
+  window.localStorage.setItem(FONT_SCALE_KEY, String(clamped));
+  window.dispatchEvent(new Event(FONT_SCALE_EVENT));
 }
 
 export default function Home() {
   const [sessionsOpen, setSessionsOpen] = useState(false);
-  const [fontScale, setFontScale] = useState(getInitialFontScale);
+  const fontScale = useSyncExternalStore(
+    subscribeFontScale,
+    getFontScaleSnapshot,
+    getFontScaleServerSnapshot
+  );
   const initialRootFontSizeRef = useRef<string | null>(null);
   const sessions = useStore((s) => s.sessions);
   const currentSessionId = useStore((s) => s.currentSessionId);
@@ -46,10 +85,6 @@ export default function Home() {
   useEffect(() => {
     void loadSessions();
   }, [loadSessions]);
-
-  useEffect(() => {
-    window.localStorage.setItem(FONT_SCALE_KEY, String(fontScale));
-  }, [fontScale]);
 
   useEffect(() => {
     if (initialRootFontSizeRef.current === null) {
@@ -110,9 +145,7 @@ export default function Home() {
             size="sm"
             className="h-8 px-2 text-xs"
             aria-label="文字を小さく"
-            onClick={() =>
-              setFontScale((prev) => Math.max(FONT_SCALE_MIN, prev - FONT_SCALE_STEP))
-            }
+            onClick={() => persistFontScale(fontScale - FONT_SCALE_STEP)}
             disabled={fontScale <= FONT_SCALE_MIN}
           >
             A-
@@ -122,7 +155,7 @@ export default function Home() {
             size="sm"
             className="h-8 px-2 text-xs"
             aria-label="文字サイズを標準に戻す"
-            onClick={() => setFontScale(FONT_SCALE_DEFAULT)}
+            onClick={() => persistFontScale(FONT_SCALE_DEFAULT)}
             disabled={fontScale === FONT_SCALE_DEFAULT}
           >
             標準
@@ -132,9 +165,7 @@ export default function Home() {
             size="sm"
             className="h-8 px-2 text-xs"
             aria-label="文字を大きく"
-            onClick={() =>
-              setFontScale((prev) => Math.min(FONT_SCALE_MAX, prev + FONT_SCALE_STEP))
-            }
+            onClick={() => persistFontScale(fontScale + FONT_SCALE_STEP)}
             disabled={fontScale >= FONT_SCALE_MAX}
           >
             A+
