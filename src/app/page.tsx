@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { MenuIcon } from "lucide-react";
+import { MenuIcon, XIcon } from "lucide-react";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -81,6 +81,8 @@ export default function Home() {
   const sessions = useStore((s) => s.sessions);
   const currentSessionId = useStore((s) => s.currentSessionId);
   const loadSessions = useStore((s) => s.loadSessions);
+  const globalError = useStore((s) => s.globalError);
+  const clearError = useStore((s) => s.clearError);
 
   useEffect(() => {
     void loadSessions();
@@ -111,6 +113,14 @@ export default function Home() {
 
   return (
     <div className="flex h-screen flex-col">
+      {globalError && (
+        <div className="flex items-center gap-2 bg-destructive px-4 py-2 text-sm text-destructive-foreground">
+          <span className="flex-1">{globalError}</span>
+          <button onClick={clearError} aria-label="エラーを閉じる">
+            <XIcon className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       <div className="flex items-center gap-3 border-b px-3 py-2">
         <Sheet open={sessionsOpen} onOpenChange={setSessionsOpen}>
           <SheetTrigger asChild>
