@@ -2,4 +2,4 @@
 set -euo pipefail
 
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec bash "$BASE_DIR/scripts/setup-local.sh"
+exec bash "$BASE_DIR/app/scripts/setup-local.sh"
